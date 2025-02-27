@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Flutter iOS",
+            "request": "launch",
+            "type": "dart",
+            "program": "lib/main.dart",
+            "args": [
+                "-d",
+                "107E2374-0161-4327-9F21-58FD03125314"
+            ]
+        }
+    ]
+} 
