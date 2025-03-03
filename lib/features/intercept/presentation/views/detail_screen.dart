@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/intercept_viewmodel.dart';
 import '../../domain/entities/intercept_params.dart';
-import 'visualization_screen.dart';
+import './visualization_screen.dart';
 
 class DetailScreen extends StatefulWidget {
   const DetailScreen({super.key});
@@ -130,6 +130,18 @@ class _DetailScreenState extends State<DetailScreen> {
                     child: Text(
                       viewModel.error!,
                       style: const TextStyle(color: Colors.red),
+                    ),
+                  ),
+                if (viewModel.result != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Intercept Course: ${viewModel.result!.interceptCourse.toStringAsFixed(1)}°'),
+                        Text('Intercept Speed: ${viewModel.result!.interceptSpeed.toStringAsFixed(1)} kts'),
+                        Text('Time to Intercept: ${viewModel.result!.timeToIntercept.toStringAsFixed(1)} minutes'),
+                      ],
                     ),
                   ),
               ],

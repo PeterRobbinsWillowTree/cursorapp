@@ -3,6 +3,8 @@ import 'package:cursorapp/features/intercept/presentation/views/detail_screen.da
 import 'package:provider/provider.dart';
 import 'package:cursorapp/features/intercept/presentation/viewmodels/intercept_viewmodel.dart';
 import 'package:cursorapp/shared/di/injection_container.dart' as di;
+import 'package:cursorapp/features/ships/presentation/views/ships_list_screen.dart';
+import 'package:cursorapp/features/ships/presentation/viewmodels/ships_viewmodel.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -13,6 +15,12 @@ class HomeScreen extends StatelessWidget {
       'icon': Icons.calculate,
       'color': Colors.blue,
       'description': 'Calculate intercept course and speed',
+    },
+    {
+      'title': 'Show List Of Ships',
+      'icon': Icons.directions_boat,
+      'color': Colors.green,
+      'description': 'View historical pre-dreadnought ships',
     },
     {
       'title': 'How to Use',
@@ -60,6 +68,16 @@ class HomeScreen extends StatelessWidget {
                     builder: (context) => ChangeNotifierProvider(
                       create: (_) => di.sl<InterceptViewModel>(),
                       child: const DetailScreen(),
+                    ),
+                  ),
+                );
+              } else if (index == 1) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ChangeNotifierProvider(
+                      create: (_) => di.sl<ShipsViewModel>(),
+                      child: const ShipsListScreen(),
                     ),
                   ),
                 );

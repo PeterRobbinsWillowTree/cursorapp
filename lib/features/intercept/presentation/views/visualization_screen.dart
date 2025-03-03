@@ -20,35 +20,41 @@ class VisualizationScreen extends StatefulWidget {
 class _VisualizationScreenState extends State<VisualizationScreen> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
-  bool _isPlaying = false;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(seconds: 5),
+      duration: const Duration(seconds: 3),
       vsync: this,
     );
-    _animation = Tween<double>(begin: 0, end: 1).animate(_controller);
-    _controller.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        setState(() => _isPlaying = false);
-      }
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _toggleAnimation();
-    });
-  }
-
-  void _toggleAnimation() {
-    setState(() {
-      _isPlaying = !_isPlaying;
-      if (_isPlaying) {
-        _controller.forward(from: 0);
-      } else {
+    _animation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeInOut,
+      ),
+    );
+    
+    // Add listener to check for collision
+    _animation.addListener(() {
+      if (_checkCollision()) {
         _controller.stop();
       }
     });
+    
+    _controller.forward();
+  }
+
+  bool _checkCollision() {
+    if (!mounted) return false;
+    
+    final painter = InterceptPainter(
+      result: widget.result,
+      params: widget.params,
+      progress: _animation.value,
+    );
+    
+    return painter.areShipsColliding(MediaQuery.of(context).size);
   }
 
   @override
@@ -61,49 +67,20 @@ class _VisualizationScreenState extends State<VisualizationScreen> with SingleTi
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Visualization'),
-        actions: [
-          IconButton(
-            icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
-            onPressed: _toggleAnimation,
-          ),
-        ],
+        title: const Text('Intercept Visualization'),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: AnimatedBuilder(
-              animation: _animation,
-              builder: (context, child) {
-                return CustomPaint(
-                  painter: InterceptPainter(
-                    result: widget.result,
-                    params: widget.params,
-                    progress: _animation.value,
-                  ),
-                );
-              },
+      body: AnimatedBuilder(
+        animation: _animation,
+        builder: (context, child) {
+          return CustomPaint(
+            painter: InterceptPainter(
+              result: widget.result,
+              params: widget.params,
+              progress: _animation.value,
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Input Values:'),
-                Text('Distance: ${widget.params.distance!.toStringAsFixed(1)} nm'),
-                Text('Bearing: ${widget.params.bearing!.toStringAsFixed(1)}°'),
-                Text('Target Course: ${widget.params.targetCourse!.toStringAsFixed(1)}°'),
-                Text('Target Speed: ${widget.params.targetSpeed!.toStringAsFixed(1)} kts'),
-                const SizedBox(height: 8),
-                Text('Calculated Results:'),
-                Text('Intercept Course: ${widget.result.interceptCourse.toStringAsFixed(1)}°'),
-                Text('Intercept Speed: ${widget.result.interceptSpeed.toStringAsFixed(1)} kts'),
-                Text('Time to Intercept: ${widget.result.timeToIntercept.toStringAsFixed(1)} hours'),
-              ],
-            ),
-          ),
-        ],
+            size: Size.infinite,
+          );
+        },
       ),
     );
   }
@@ -113,7 +90,9 @@ class InterceptPainter extends CustomPainter {
   final InterceptResult result;
   final InterceptParams params;
   final double progress;
-  static const double shipSize = 20.0;
+  static const double shipLength = 40.0;
+  static const double shipWidth = 15.0;
+  static const double collisionDistance = shipLength / 2;  // Distance to consider as collision
 
   InterceptPainter({
     required this.result,
@@ -125,99 +104,193 @@ class InterceptPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = (size.width < size.height ? size.width : size.height) * 0.45;
-    final scale = radius / (params.distance! * 1.2); // Scale based on initial distance
+    
+    // Draw compass rose first (so it's behind everything)
+    _drawCompassRose(canvas, center, radius);
     
     // Setup paints
     final myShipPaint = Paint()..color = Colors.blue;
     final targetPaint = Paint()..color = Colors.red;
-    final interceptPaint = Paint()
-      ..color = Colors.green
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
     final targetPathPaint = Paint()
-      ..color = Colors.red.withAlpha(120)
+      ..color = Colors.green
+      ..strokeWidth = 2
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
-
-    // Draw compass for reference
-    _drawCompass(canvas, size, center, radius);
+      ..strokeCap = StrokeCap.round;
+    final interceptPathPaint = Paint()
+      ..color = Colors.green
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
 
     // Calculate positions
     final bearingRad = (90 - params.bearing!) * pi / 180;
+    final scale = size.width / (params.distance! * 3);
+    
     final targetInitialPos = center + Offset(
       cos(bearingRad) * params.distance! * scale,
       -sin(bearingRad) * params.distance! * scale,
     );
 
-    // Calculate time-based positions
-    final timeToIntercept = result.timeToIntercept / 60; // Convert to hours
-    final myShipPos = _calculatePosition(
-      center,
-      result.interceptCourse,
-      result.interceptSpeed,
-      progress * timeToIntercept,
-      scale
+    final targetCourseRad = (90 - params.targetCourse!) * pi / 180;
+    final interceptCourseRad = (90 - result.interceptCourse) * pi / 180;
+
+    // Calculate current positions
+    final myShipPos = center + Offset(
+      cos(interceptCourseRad) * result.interceptSpeed * progress * scale * 10,
+      -sin(interceptCourseRad) * result.interceptSpeed * progress * scale * 10,
     );
-    final targetPos = _calculatePosition(
-      targetInitialPos,
-      params.targetCourse!,
-      params.targetSpeed!,
-      progress * timeToIntercept,
-      scale
+
+    final targetPos = targetInitialPos + Offset(
+      cos(targetCourseRad) * params.targetSpeed! * progress * scale * 10,
+      -sin(targetCourseRad) * params.targetSpeed! * progress * scale * 10,
     );
 
     // Draw target's projected path (dotted)
     _drawDottedLine(canvas, targetInitialPos, targetPos, targetPathPaint);
     
-    // Draw intercept line
-    canvas.drawLine(center, myShipPos, interceptPaint);
+    // Draw intercept path (solid)
+    canvas.drawLine(center, myShipPos, interceptPathPaint);
 
     // Draw ships
     _drawShipHull(canvas, center, result.interceptCourse, myShipPaint);
     _drawShipHull(canvas, targetInitialPos, params.targetCourse!, targetPaint);
-    
+
     // Draw moving ships
-    if (progress > 0) {
-      _drawShipHull(canvas, myShipPos, result.interceptCourse, myShipPaint);
-      _drawShipHull(canvas, targetPos, params.targetCourse!, targetPaint);
+    _drawShipHull(canvas, myShipPos, result.interceptCourse, myShipPaint);
+    _drawShipHull(canvas, targetPos, params.targetCourse!, targetPaint);
+
+    // Add collision indicator
+    if (areShipsColliding(size)) {
+      final collisionPaint = Paint()
+        ..color = Colors.green.withAlpha(77)
+        ..style = PaintingStyle.fill;
+      
+      canvas.drawCircle(myShipPos, shipLength, collisionPaint);
     }
   }
 
-  Offset _calculatePosition(Offset start, double course, double speed, double time, double scale) {
-    final rad = (90 - course) * pi / 180;
-    return start + Offset(
-      cos(rad) * speed * time * scale,
-      -sin(rad) * speed * time * scale,
+  void _drawCompassRose(Canvas canvas, Offset center, double radius) {
+    final compassPaint = Paint()
+      ..color = Colors.grey.withAlpha(77)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    final labelPaint = TextPainter(
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
     );
+
+    // Draw main circle
+    canvas.drawCircle(center, radius, compassPaint);
+
+    // Draw cardinal and ordinal points
+    for (int i = 0; i < 360; i += 45) {
+      final rad = (90 - i) * pi / 180;
+      final isCardinal = i % 90 == 0;
+      final lineLength = isCardinal ? radius : radius * 0.95;
+      
+      // Draw lines
+      canvas.drawLine(
+        center + Offset(cos(rad) * radius * 0.9, -sin(rad) * radius * 0.9),
+        center + Offset(cos(rad) * lineLength, -sin(rad) * lineLength),
+        compassPaint,
+      );
+
+      // Draw labels
+      String label;
+      switch (i) {
+        case 0:
+          label = 'N';
+          break;
+        case 45:
+          label = 'NE';
+          break;
+        case 90:
+          label = 'E';
+          break;
+        case 135:
+          label = 'SE';
+          break;
+        case 180:
+          label = 'S';
+          break;
+        case 225:
+          label = 'SW';
+          break;
+        case 270:
+          label = 'W';
+          break;
+        case 315:
+          label = 'NW';
+          break;
+        default:
+          label = '';
+      }
+
+      if (label.isNotEmpty) {
+        labelPaint.text = TextSpan(
+          text: label,
+          style: TextStyle(
+            color: Colors.grey.withAlpha(179),
+            fontSize: isCardinal ? 16 : 14,
+            fontWeight: isCardinal ? FontWeight.bold : FontWeight.normal,
+          ),
+        );
+        labelPaint.layout();
+        labelPaint.paint(
+          canvas,
+          center + Offset(
+            cos(rad) * (radius + 20) - labelPaint.width / 2,
+            -sin(rad) * (radius + 20) - labelPaint.height / 2,
+          ),
+        );
+      }
+    }
+
+    // Draw degree marks
+    for (int i = 0; i < 360; i += 15) {
+      if (i % 45 != 0) {  // Skip where we already drew cardinal/ordinal lines
+        final rad = (90 - i) * pi / 180;
+        canvas.drawLine(
+          center + Offset(cos(rad) * radius * 0.95, -sin(rad) * radius * 0.95),
+          center + Offset(cos(rad) * radius, -sin(rad) * radius),
+          compassPaint,
+        );
+      }
+    }
+
+    // Draw inner circles
+    for (int i = 1; i <= 3; i++) {
+      canvas.drawCircle(
+        center,
+        radius * i / 3,
+        compassPaint,
+      );
+    }
   }
 
-  void _drawShipHull(Canvas canvas, Offset pos, double course, Paint paint) {
+  void _drawShipHull(Canvas canvas, Offset position, double course, Paint paint) {
     final rad = (90 - course) * pi / 180;
     final path = Path();
     
-    // Draw a ship-like hull shape
-    path.moveTo(
-      pos.dx + cos(rad) * shipSize,
-      pos.dy - sin(rad) * shipSize
+    // Calculate hull points
+    final bow = position + Offset(cos(rad) * shipLength / 2, -sin(rad) * shipLength / 2);
+    final stern = position + Offset(-cos(rad) * shipLength / 2, sin(rad) * shipLength / 2);
+    final portSide = position + Offset(
+      -sin(rad) * shipWidth / 2,
+      -cos(rad) * shipWidth / 2,
     );
-    
-    // Bow
-    path.lineTo(
-      pos.dx + cos(rad + 0.3) * shipSize * 0.5,
-      pos.dy - sin(rad + 0.3) * shipSize * 0.5
+    final starboardSide = position + Offset(
+      sin(rad) * shipWidth / 2,
+      cos(rad) * shipWidth / 2,
     );
-    path.lineTo(
-      pos.dx + cos(rad - 0.3) * shipSize * 0.5,
-      pos.dy - sin(rad - 0.3) * shipSize * 0.5
-    );
-    
-    // Stern
-    path.lineTo(
-      pos.dx - cos(rad) * shipSize,
-      pos.dy + sin(rad) * shipSize
-    );
-    
+
+    // Draw hull shape
+    path.moveTo(bow.dx, bow.dy);
+    path.lineTo(portSide.dx, portSide.dy);
+    path.lineTo(stern.dx, stern.dy);
+    path.lineTo(starboardSide.dx, starboardSide.dy);
     path.close();
+
     canvas.drawPath(path, paint);
   }
 
@@ -246,21 +319,33 @@ class InterceptPainter extends CustomPainter {
     }
   }
 
-  void _drawCompass(Canvas canvas, Size size, Offset center, double radius) {
-    final paint = Paint()
-      ..color = Colors.grey.withAlpha(100)
-      ..style = PaintingStyle.stroke;
-
-    canvas.drawCircle(center, radius, paint);
+  bool areShipsColliding(Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final scale = size.width / (params.distance! * 3);
     
-    for (var i = 0; i < 360; i += 90) {
-      final rad = (90 - i) * pi / 180;
-      canvas.drawLine(
-        center,
-        center + Offset(cos(rad) * radius, -sin(rad) * radius),
-        paint,
-      );
-    }
+    // Calculate current positions
+    final bearingRad = (90 - params.bearing!) * pi / 180;
+    final targetInitialPos = center + Offset(
+      cos(bearingRad) * params.distance! * scale,
+      -sin(bearingRad) * params.distance! * scale,
+    );
+
+    final targetCourseRad = (90 - params.targetCourse!) * pi / 180;
+    final interceptCourseRad = (90 - result.interceptCourse) * pi / 180;
+
+    final myShipPos = center + Offset(
+      cos(interceptCourseRad) * result.interceptSpeed * progress * scale * 10,
+      -sin(interceptCourseRad) * result.interceptSpeed * progress * scale * 10,
+    );
+
+    final targetPos = targetInitialPos + Offset(
+      cos(targetCourseRad) * params.targetSpeed! * progress * scale * 10,
+      -sin(targetCourseRad) * params.targetSpeed! * progress * scale * 10,
+    );
+
+    // Check if ships are close enough to be considered colliding
+    final distance = (myShipPos - targetPos).distance;
+    return distance < collisionDistance;
   }
 
   @override
