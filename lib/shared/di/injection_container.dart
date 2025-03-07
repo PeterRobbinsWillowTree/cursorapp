@@ -15,7 +15,7 @@ final GetIt sl = GetIt.instance;
 
 Future<void> init() async {
   // Services
-  final config = ConfigService.development();  // or .production() based on environment
+  final config = ConfigService.development();  // This ensures offline mode
   
   sl.registerLazySingleton(() => config);
   
@@ -27,7 +27,7 @@ Future<void> init() async {
   
   sl.registerLazySingleton(() => ApiClient(
     dio: sl(),
-    isOffline: config.isOffline,
+    isOffline: config.isOffline,  // This should be true in development
   ));
 
   // Repository
@@ -46,7 +46,7 @@ Future<void> init() async {
     () => ShipsRepositoryImpl(
       apiClient: sl(),
       config: sl(),
-      mockRepository: MockShipsRepository(),
+      mockRepository: MockShipsRepository(),  // Make sure this is registered
     ),
   );
 

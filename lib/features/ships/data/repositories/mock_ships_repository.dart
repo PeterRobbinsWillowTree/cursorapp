@@ -62,7 +62,7 @@ class MockShipsRepository implements ShipsRepository {
 
   @override
   Future<List<HistoricalShip>> getPreDreadnoughtShips() async {
-    _logger.i('Fetching mock pre-dreadnought ships data');
+    _logger.i('Fetching mock pre-dreadnought ships data in offline mode');
     await Future.delayed(const Duration(seconds: 1));
     _logger.i('Returned ${_mockShips.length} mock ships');
     return _mockShips;
