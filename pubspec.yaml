@@ -30,10 +30,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  http: ^1.1.0  # or latest version
+  http: ^1.1.0
   get_it: ^7.6.7
   provider: ^6.1.1
   logger: ^2.0.2
+  dio: ^5.4.0  # Add Dio for API calls
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -50,6 +51,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
   mocktail: ^1.0.3
+  mockito: ^5.4.4  # Add Mockito for mocking
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -64,9 +66,7 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
-    - assets/ships/canopus.jpg
-    - assets/ships/brandenburg.jpg
-    - assets/ships/mikasa.jpg
+    - assets/ships/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

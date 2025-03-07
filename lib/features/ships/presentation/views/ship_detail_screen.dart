@@ -15,7 +15,25 @@ class ShipDetailScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Image(image: AssetImage(ship.imageUrl)),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8.0),
+              child: Image.asset(
+                ship.imageUrl,
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: 200,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    height: 200,
+                    color: Colors.grey[300],
+                    child: const Center(
+                      child: Icon(Icons.error_outline, size: 50),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
             Text('Country: ${ship.country}'),
             Text('Year Commissioned: ${ship.yearCommissioned}'),
             Text('Displacement: ${ship.displacement} tons'),

@@ -6,10 +6,30 @@ import '../../features/intercept/presentation/viewmodels/intercept_viewmodel.dar
 import '../../features/ships/domain/repositories/ships_repository.dart';
 import '../../features/ships/presentation/viewmodels/ships_viewmodel.dart';
 import '../../features/ships/data/repositories/mock_ships_repository.dart';
+import 'package:dio/dio.dart';
+import '../../core/services/api_client.dart';
+import '../../core/services/config_service.dart';
+import '../../features/ships/data/repositories/ships_repository_impl.dart';
 
 final GetIt sl = GetIt.instance;
 
 Future<void> init() async {
+  // Services
+  final config = ConfigService.development();  // or .production() based on environment
+  
+  sl.registerLazySingleton(() => config);
+  
+  sl.registerLazySingleton(() => Dio(BaseOptions(
+    baseUrl: config.baseUrl,
+    connectTimeout: const Duration(seconds: 5),
+    receiveTimeout: const Duration(seconds: 3),
+  )));
+  
+  sl.registerLazySingleton(() => ApiClient(
+    dio: sl(),
+    isOffline: config.isOffline,
+  ));
+
   // Repository
   sl.registerLazySingleton<InterceptRepository>(
     () => InterceptRepositoryImpl(),
@@ -23,7 +43,11 @@ Future<void> init() async {
 
   // Repositories
   sl.registerLazySingleton<ShipsRepository>(
-    () => MockShipsRepository(),
+    () => ShipsRepositoryImpl(
+      apiClient: sl(),
+      config: sl(),
+      mockRepository: MockShipsRepository(),
+    ),
   );
 
   // ViewModels
